@@ -1,11 +1,10 @@
 import type { RequestHandler } from "express";
 
-import type { CreateTaskInput } from "../schemas/task.schema.js";
+import type {
+  CreateTaskInput,
+  ProjectParams,
+} from "../schemas/task.schema.js";
 import type { TaskService } from "../services/task.service.js";
-
-interface ProjectParams {
-  projectId: string;
-}
 
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
@@ -15,6 +14,7 @@ export class TaskController {
     response,
   ) => {
     const task = await this.taskService.createTask(
+      request.auth,
       request.params.projectId,
       request.body,
     );

@@ -1,5 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 
+import { HttpError } from "../errors/http-error.js";
+
 export const errorHandler: ErrorRequestHandler = (
   error,
   _request,
@@ -8,6 +10,16 @@ export const errorHandler: ErrorRequestHandler = (
 ) => {
   if (response.headersSent) {
     next(error);
+    return;
+  }
+
+  if (error instanceof HttpError) {
+    response.status(error.statusCode).json({
+      error: {
+        code: error.code,
+        message: error.message,
+      },
+    });
     return;
   }
 
