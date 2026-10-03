@@ -15,3 +15,10 @@ export class ResourceNotFoundError extends HttpError {
     this.name = "ResourceNotFoundError";
   }
 }
+
+export class InvalidCredentialsError extends HttpError {
+  constructor() {
+    super(401, "INVALID_CREDENTIALS", "Invalid login credentials");
+    this.name = "InvalidCredentialsError";
+  }
+}

@@ -1,13 +1,8 @@
 import { z } from "zod";
 
+import { databaseIdSchema } from "./common.schema.js";
+
 export const taskPrioritySchema = z.enum(["low", "medium", "high"]);
-
-const maxBigIntId = 9_223_372_036_854_775_807n;
-
-export const databaseIdSchema = z
-  .string()
-  .regex(/^[1-9]\d*$/, "Must be a positive integer")
-  .refine((value) => BigInt(value) <= maxBigIntId, "Value is too large");
 
 export const projectParamsSchema = z.strictObject({
   projectId: databaseIdSchema,

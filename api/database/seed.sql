@@ -5,7 +5,11 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO users (id, email, password_hash)
-VALUES (1, 'mock-user@example.com', '!login-disabled-until-auth-seed-is-added!')
+VALUES (
+  1,
+  'mock-user@example.com',
+  '$argon2id$v=19$m=19456,p=1,t=2$6jzS+iA8hGK9GBKfrMYq3w$jJzUU2OLHcEhFtvBvnQn4oWwGXp4izoUd+c2K3xsyPs'
+)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO organization_memberships (organization_id, user_id, role)
