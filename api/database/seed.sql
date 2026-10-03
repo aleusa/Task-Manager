@@ -4,12 +4,12 @@ VALUES
   (20, 'Organization 20')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO users (id, email)
-VALUES (1, 'mock-user@example.com')
+INSERT INTO users (id, email, password_hash)
+VALUES (1, 'mock-user@example.com', '!login-disabled-until-auth-seed-is-added!')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO organization_memberships (organization_id, user_id, role)
-VALUES (10, 1, 'member')
+VALUES (10, 1, 'MEMBER')
 ON CONFLICT (organization_id, user_id) DO NOTHING;
 
 INSERT INTO projects (id, organization_id, name)
