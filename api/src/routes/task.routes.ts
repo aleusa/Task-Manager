@@ -1,7 +1,8 @@
 import { Router } from "express";
 
+import type { RequestHandler } from "express";
+
 import type { TaskController } from "../controllers/task.controller.js";
-import { mockAuthentication } from "../middleware/mock-auth.js";
 import { validateBody, validateParams } from "../middleware/validate.js";
 import {
   createTaskSchema,
@@ -10,12 +11,15 @@ import {
   projectParamsSchema,
 } from "../schemas/task.schema.js";
 
-export function createTaskRouter(taskController: TaskController): Router {
+export function createTaskRouter(
+  taskController: TaskController,
+  authenticate: RequestHandler,
+): Router {
   const router = Router();
 
   router.post<ProjectParams, unknown, CreateTaskInput>(
     "/projects/:projectId/tasks",
-    mockAuthentication,
+    authenticate,
     validateParams(projectParamsSchema),
     validateBody(createTaskSchema),
     taskController.create,

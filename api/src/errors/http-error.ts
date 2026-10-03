@@ -22,3 +22,10 @@ export class InvalidCredentialsError extends HttpError {
     this.name = "InvalidCredentialsError";
   }
 }
+
+export class AuthenticationRequiredError extends HttpError {
+  constructor() {
+    super(401, "AUTHENTICATION_REQUIRED", "Authentication required");
+    this.name = "AuthenticationRequiredError";
+  }
+}

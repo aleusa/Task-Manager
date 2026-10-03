@@ -3,6 +3,7 @@ import express from "express";
 import { AuthController } from "./controllers/auth.controller.js";
 import { TaskController } from "./controllers/task.controller.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { createAuthenticationMiddleware } from "./middleware/authenticate.js";
 import { notFoundHandler } from "./middleware/not-found.js";
 import { AuthRepository } from "./repositories/auth.repository.js";
 import { TaskRepository } from "./repositories/task.repository.js";
@@ -15,6 +16,7 @@ import { TaskService } from "./services/task.service.js";
 const authRepository = new AuthRepository();
 const authService = new AuthService(authRepository);
 const authController = new AuthController(authService);
+const authenticate = createAuthenticationMiddleware(authService);
 
 const taskRepository = new TaskRepository();
 const taskService = new TaskService(taskRepository);
@@ -27,7 +29,7 @@ app.use(express.json({ limit: "100kb" }));
 
 app.use(healthRouter);
 app.use(createAuthRouter(authController));
-app.use(createTaskRouter(taskController));
+app.use(createTaskRouter(taskController, authenticate));
 
 app.use(notFoundHandler);
 app.use(errorHandler);

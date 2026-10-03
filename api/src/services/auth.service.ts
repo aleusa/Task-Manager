@@ -2,9 +2,13 @@ import { createHash, randomBytes } from "node:crypto";
 
 import argon2 from "argon2";
 
-import { InvalidCredentialsError } from "../errors/http-error.js";
+import {
+  AuthenticationRequiredError,
+  InvalidCredentialsError,
+} from "../errors/http-error.js";
 import type { AuthRepository } from "../repositories/auth.repository.js";
 import type { LoginInput } from "../schemas/auth.schema.js";
+import type { AuthContext } from "../types/auth.js";
 
 const sessionDurationMilliseconds = 8 * 60 * 60 * 1_000;
 
@@ -12,6 +16,10 @@ const sessionDurationMilliseconds = 8 * 60 * 60 * 1_000;
 // too, reducing the timing difference between unknown users and wrong passwords.
 const dummyPasswordHash =
   "$argon2id$v=19$m=19456,p=1,t=2$lcPHgu2db84RSze3+9sAUw$teJdXQG50su2ZQdW326gDTqPA+7kMBf6Qu5y2PBgY08";
+
+function hashSessionToken(sessionToken: string): string {
+  return createHash("sha256").update(sessionToken).digest("hex");
+}
 
 export interface LoginResult {
   sessionToken: string;
@@ -39,9 +47,7 @@ export class AuthService {
     }
 
     const sessionToken = randomBytes(32).toString("base64url");
-    const tokenHash = createHash("sha256")
-      .update(sessionToken)
-      .digest("hex");
+    const tokenHash = hashSessionToken(sessionToken);
     const requestedExpiration = new Date(
       Date.now() + sessionDurationMilliseconds,
     );
@@ -58,6 +64,25 @@ export class AuthService {
       userId: identity.userId,
       organizationId: identity.organizationId,
       expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  async authenticate(sessionToken: string): Promise<AuthContext> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+      throw new AuthenticationRequiredError();
+    }
+
+    const session = await this.authRepository.findActiveSession(
+      hashSessionToken(sessionToken),
+    );
+
+    if (!session) {
+      throw new AuthenticationRequiredError();
+    }
+
+    return {
+      currentUserId: session.userId,
+      currentOrganizationId: session.organizationId,
     };
   }
 }

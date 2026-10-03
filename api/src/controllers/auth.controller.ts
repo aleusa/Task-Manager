@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 
 import { env } from "../config/env.js";
+import { sessionCookieName } from "../config/session.js";
 import type { LoginInput } from "../schemas/auth.schema.js";
 import type { AuthService } from "../services/auth.service.js";
 
@@ -14,7 +15,7 @@ export class AuthController {
     const result = await this.authService.login(request.body);
     const expiresAt = new Date(result.expiresAt);
 
-    response.cookie("sid", result.sessionToken, {
+    response.cookie(sessionCookieName, result.sessionToken, {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
       sameSite: "lax",

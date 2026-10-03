@@ -18,6 +18,16 @@ interface SessionRow extends QueryResultRow {
   expiresAt: Date;
 }
 
+interface ActiveSessionRow extends QueryResultRow {
+  userId: string;
+  organizationId: string;
+}
+
+export interface ActiveSession {
+  userId: string;
+  organizationId: string;
+}
+
 export class AuthRepository {
   constructor(private readonly database: Pick<Pool, "query"> = databasePool) {}
 
@@ -70,5 +80,23 @@ export class AuthRepository {
     }
 
     return session.expiresAt;
+  }
+
+  async findActiveSession(tokenHash: string): Promise<ActiveSession | null> {
+    const result = await this.database.query<ActiveSessionRow>(
+      `
+        SELECT
+          user_id::text AS "userId",
+          organization_id::text AS "organizationId"
+        FROM sessions
+        WHERE token_hash = $1
+          AND expires_at > NOW()
+          AND revoked_at IS NULL
+        LIMIT 1
+      `,
+      [tokenHash],
+    );
+
+    return result.rows[0] ?? null;
   }
 }
