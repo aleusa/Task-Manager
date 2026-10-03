@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { createAuthenticationMiddleware } from "./middleware/authenticate.js";
 import { notFoundHandler } from "./middleware/not-found.js";
 import { AuthRepository } from "./repositories/auth.repository.js";
+import { MembershipRepository } from "./repositories/membership.repository.js";
 import { TaskRepository } from "./repositories/task.repository.js";
 import { createAuthRouter } from "./routes/auth.routes.js";
 import { healthRouter } from "./routes/health.routes.js";
@@ -19,7 +20,8 @@ const authController = new AuthController(authService);
 const authenticate = createAuthenticationMiddleware(authService);
 
 const taskRepository = new TaskRepository();
-const taskService = new TaskService(taskRepository);
+const membershipRepository = new MembershipRepository();
+const taskService = new TaskService(taskRepository, membershipRepository);
 const taskController = new TaskController(taskService);
 
 export const app = express();

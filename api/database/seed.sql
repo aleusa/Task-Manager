@@ -13,7 +13,7 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO organization_memberships (organization_id, user_id, role)
-VALUES (10, 1, 'MEMBER')
+VALUES (10, 1, 'MANAGER')
 ON CONFLICT (organization_id, user_id) DO NOTHING;
 
 INSERT INTO projects (id, organization_id, name)

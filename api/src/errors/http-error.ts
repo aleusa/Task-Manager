@@ -29,3 +29,10 @@ export class AuthenticationRequiredError extends HttpError {
     this.name = "AuthenticationRequiredError";
   }
 }
+
+export class ForbiddenError extends HttpError {
+  constructor(message = "You do not have permission to perform this action") {
+    super(403, "FORBIDDEN", message);
+    this.name = "ForbiddenError";
+  }
+}
