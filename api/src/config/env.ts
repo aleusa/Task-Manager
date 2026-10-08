@@ -19,11 +19,6 @@ const envSchema = z.object({
     .string()
     .min(1)
     .default("postgresql://postgres:postgres@localhost:5432/task_management"),
-  MOCK_CURRENT_USER_ID: z.string().regex(/^[1-9]\d*$/).default("1"),
-  MOCK_CURRENT_ORGANIZATION_ID: z
-    .string()
-    .regex(/^[1-9]\d*$/)
-    .default("10"),
 });
 
 export const env = envSchema.parse(process.env);
