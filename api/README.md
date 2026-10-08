@@ -30,6 +30,44 @@ test database URL. It defaults to the local `task_management_test` database; set
 `TEST_DATABASE_URL` to override it in local development or CI. As a safety
 guard, the database name must contain a standalone `test` segment.
 
+## Testing architecture
+
+The test suite uses three boundaries rather than trying to prove everything in
+one kind of test:
+
+- **Unit tests** should cover schemas and service business rules with repository
+  fakes or mocks. They should be fast and should not use Express or PostgreSQL.
+- **HTTP integration tests** use Supertest with the exported Express `app`.
+  They exercise routing, validation, controllers, services, middleware, cookies,
+  and error responses together. The authentication tests currently mock the
+  repository boundary, so they never connect to PostgreSQL.
+- **Database integration tests** should exercise repository methods against a
+  real PostgreSQL test database. These tests are necessary for SQL, constraints,
+  transactions, joins, and tenant-isolation behavior that a mock cannot prove.
+
+External systems should sit behind small adapters and be replaced with
+deterministic fakes or Vitest mocks in most tests. A smaller integration suite
+can exercise a provider's sandbox when that behavior cannot be represented
+locally.
+
+Real PostgreSQL tests should apply the migrations to a dedicated database,
+insert only the fixtures required by each test, and clean up with transactions
+or table truncation. `TEST_DATABASE_URL` must always point to a database whose
+name contains a standalone `test` segment.
+
+In CI, start PostgreSQL as a service container, set `TEST_DATABASE_URL`, apply
+the migration, and then run `npm test`, `npm run typecheck`, and `npm run build`.
+The one-shot `npm test` command already returns a failing exit code when a test
+fails, so it can be used directly as a CI quality gate.
+
+The current `app.ts`/`server.ts` separation makes HTTP testing easier because
+tests can import the application without opening the production port. The
+route/controller/service/repository layers also provide useful test boundaries.
+The main testing difficulty is that `app.ts` constructs concrete repositories
+and the repositories default to a global database pool. This requires module
+mocking today; a future `createApp(dependencies)` factory would allow tests to
+inject repository fakes explicitly.
+
 ## Endpoints
 
 ### Health
