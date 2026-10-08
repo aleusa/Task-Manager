@@ -17,6 +17,19 @@ The server defaults to `http://localhost:3000`.
 Copy `.env.example` to `.env` and update `DATABASE_URL` for your PostgreSQL
 instance before running the database commands.
 
+## Run tests
+
+```bash
+npm test
+```
+
+Vitest runs HTTP tests against the exported Express application, so the test
+command does not start `src/server.ts` or reserve the development port. Test
+configuration sets `NODE_ENV=test` and replaces `DATABASE_URL` with a dedicated
+test database URL. It defaults to the local `task_management_test` database; set
+`TEST_DATABASE_URL` to override it in local development or CI. As a safety
+guard, the database name must contain a standalone `test` segment.
+
 ## Endpoints
 
 ### Health
