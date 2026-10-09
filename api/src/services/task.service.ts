@@ -2,10 +2,7 @@ import type {
   TaskRecord,
   TaskRepository,
 } from "../repositories/task.repository.js";
-import {
-  ForbiddenError,
-  ResourceNotFoundError,
-} from "../errors/http-error.js";
+import { ForbiddenError, ResourceNotFoundError } from "../errors/http-error.js";
 import type { MembershipRepository } from "../repositories/membership.repository.js";
 import type { CreateTaskInput } from "../schemas/task.schema.js";
 import type { AuthContext } from "../types/auth.js";
@@ -27,7 +24,9 @@ export class TaskService {
     );
 
     if (role !== "ADMIN" && role !== "MANAGER") {
-      throw new ForbiddenError("Only administrators and managers can create tasks");
+      throw new ForbiddenError(
+        "Only administrators and managers can create tasks",
+      );
     }
 
     const task = await this.taskRepository.createForOrganization(
