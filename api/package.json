@@ -12,6 +12,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "db:migrate": "tsx src/database/run-sql.ts database/001_initial.sql",
     "db:seed": "tsx src/database/run-sql.ts database/seed.sql"
