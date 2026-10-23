@@ -1,4 +1,4 @@
-import type { Pool, QueryResultRow } from "pg";
+import type { Pool, PoolClient, QueryResultRow } from "pg";
 
 import { databasePool } from "../config/database.js";
 import type { CreateTaskInput } from "../schemas/task.schema.js";
@@ -25,8 +25,22 @@ interface TaskRow extends QueryResultRow {
   createdAt: Date;
 }
 
+interface IdempotentTaskRow extends TaskRow {
+  requestMatches: boolean;
+}
+
+type QueryableDatabase = Pick<Pool | PoolClient, "query">;
+
+export type IdempotentTaskCreationResult =
+  | { status: "created"; task: TaskRecord }
+  | { status: "replayed"; task: TaskRecord }
+  | { status: "conflict" }
+  | { status: "not_found" };
+
 export class TaskRepository {
-  constructor(private readonly database: Pick<Pool, "query"> = databasePool) {}
+  constructor(
+    private readonly database: Pick<Pool, "query" | "connect"> = databasePool,
+  ) {}
 
   async createForOrganization(
     projectId: string,
@@ -34,7 +48,120 @@ export class TaskRepository {
     currentUserId: string,
     input: CreateTaskInput,
   ): Promise<TaskRecord | null> {
-    const result = await this.database.query<TaskRow>(
+    return this.createForOrganizationWith(
+      this.database,
+      projectId,
+      organizationId,
+      currentUserId,
+      input,
+    );
+  }
+
+  async createIdempotentForOrganization(
+    projectId: string,
+    organizationId: string,
+    currentUserId: string,
+    idempotencyKey: string,
+    input: CreateTaskInput,
+  ): Promise<IdempotentTaskCreationResult> {
+    const client = await this.database.connect();
+    const requestPayload = JSON.stringify({ projectId, currentUserId, input });
+
+    try {
+      await client.query("BEGIN");
+
+      const reservation = await client.query(
+        `
+          INSERT INTO task_creation_idempotency (
+            organization_id,
+            idempotency_key,
+            request_payload
+          )
+          VALUES ($1::bigint, $2, $3::jsonb)
+          ON CONFLICT (organization_id, idempotency_key) DO NOTHING
+          RETURNING idempotency_key
+        `,
+        [organizationId, idempotencyKey, requestPayload],
+      );
+
+      if (reservation.rowCount === 0) {
+        const existing = await client.query<IdempotentTaskRow>(
+          `
+            SELECT
+              task.id::text AS "id",
+              task.project_id::text AS "projectId",
+              task.title,
+              task.description,
+              task.assignee_id::text AS "assigneeId",
+              task.priority,
+              task.due_date AS "dueDate",
+              task.created_at AS "createdAt",
+              idempotency.request_payload = $3::jsonb AS "requestMatches"
+            FROM task_creation_idempotency AS idempotency
+            JOIN tasks AS task
+              ON task.id = idempotency.task_id
+            WHERE idempotency.organization_id = $1::bigint
+              AND idempotency.idempotency_key = $2
+          `,
+          [organizationId, idempotencyKey, requestPayload],
+        );
+
+        const row = existing.rows[0];
+        if (!row) {
+          throw new Error("Idempotency record is missing its task result");
+        }
+
+        if (!row.requestMatches) {
+          await client.query("ROLLBACK");
+          return { status: "conflict" };
+        }
+
+        await client.query("COMMIT");
+        return { status: "replayed", task: this.toTaskRecord(row) };
+      }
+
+      const task = await this.createForOrganizationWith(
+        client,
+        projectId,
+        organizationId,
+        currentUserId,
+        input,
+      );
+
+      if (!task) {
+        await client.query("ROLLBACK");
+        return { status: "not_found" };
+      }
+
+      await client.query(
+        `
+          UPDATE task_creation_idempotency
+          SET task_id = $3::bigint,
+              completed_at = NOW()
+          WHERE organization_id = $1::bigint
+            AND idempotency_key = $2
+        `,
+        [organizationId, idempotencyKey, task.id],
+      );
+
+      await client.query("COMMIT");
+      return { status: "created", task };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async createForOrganizationWith(
+    database: QueryableDatabase,
+    projectId: string,
+    organizationId: string,
+    currentUserId: string,
+    input: CreateTaskInput,
+  ): Promise<TaskRecord | null> {
+    const result = await database.query<TaskRow>(
       `
         INSERT INTO tasks (
           project_id,
@@ -98,6 +225,10 @@ export class TaskRepository {
       return null;
     }
 
+    return this.toTaskRecord(row);
+  }
+
+  private toTaskRecord(row: TaskRow): TaskRecord {
     return {
       ...row,
       dueDate: row.dueDate?.toISOString() ?? null,

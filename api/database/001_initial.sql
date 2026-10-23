@@ -61,3 +61,18 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id
   ON tasks (project_id);
+
+CREATE TABLE IF NOT EXISTS task_creation_idempotency (
+  organization_id BIGINT NOT NULL
+    REFERENCES organizations(id) ON DELETE CASCADE,
+  idempotency_key VARCHAR(200) NOT NULL,
+  request_payload JSONB NOT NULL,
+  task_id BIGINT UNIQUE REFERENCES tasks(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  PRIMARY KEY (organization_id, idempotency_key),
+  CHECK (
+    (task_id IS NULL AND completed_at IS NULL)
+    OR (task_id IS NOT NULL AND completed_at IS NOT NULL)
+  )
+);

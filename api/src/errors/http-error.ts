@@ -36,3 +36,17 @@ export class ForbiddenError extends HttpError {
     this.name = "ForbiddenError";
   }
 }
+
+export class BadRequestError extends HttpError {
+  constructor(message = "Request is invalid") {
+    super(400, "VALIDATION_ERROR", message);
+    this.name = "BadRequestError";
+  }
+}
+
+export class ConflictError extends HttpError {
+  constructor(message = "Request conflicts with an existing resource") {
+    super(409, "CONFLICT", message);
+    this.name = "ConflictError";
+  }
+}
