@@ -12,6 +12,12 @@ interface TaskCountRow extends QueryResultRow {
   count: number;
 }
 
+interface TaskStateRow extends QueryResultRow {
+  title: string;
+  assigneeId: string | null;
+  dueDate: Date | null;
+}
+
 const sessionToken = "a".repeat(43);
 const sessionTokenHash = createHash("sha256")
   .update(sessionToken)
@@ -42,6 +48,111 @@ async function countProjectTasks(projectId: string): Promise<number> {
 
   return result.rows[0]?.count ?? 0;
 }
+
+async function getTaskState(taskId: string): Promise<TaskStateRow | undefined> {
+  const result = await databasePool.query<TaskStateRow>(
+    `
+      SELECT
+        title,
+        assignee_id::text AS "assigneeId",
+        due_date AS "dueDate"
+      FROM tasks
+      WHERE id = $1::bigint
+    `,
+    [taskId],
+  );
+
+  return result.rows[0];
+}
+
+describe("task assignment tenant isolation", () => {
+  beforeAll(async () => {
+    const schemaUrl = new URL("../database/001_initial.sql", import.meta.url);
+    const schema = await readFile(schemaUrl, "utf8");
+    await databasePool.query(schema);
+  });
+
+  beforeEach(async () => {
+    await clearTestData();
+
+    await databasePool.query(`
+      INSERT INTO organizations (id, name)
+      VALUES
+        (10, 'Organization 10'),
+        (20, 'Organization 20');
+
+      INSERT INTO users (id, email, password_hash)
+      VALUES
+        (1, 'manager-org-10@example.com', 'unused'),
+        (2, 'member-org-20@example.com', 'unused'),
+        (3, 'member-org-10@example.com', 'unused');
+
+      INSERT INTO organization_memberships (organization_id, user_id, role)
+      VALUES
+        (10, 1, 'MANAGER'),
+        (20, 2, 'MEMBER'),
+        (10, 3, 'MEMBER');
+
+      INSERT INTO projects (id, organization_id, name)
+      VALUES (100, 10, 'Organization 10 project');
+
+      INSERT INTO tasks (
+        id,
+        project_id,
+        title,
+        assignee_id,
+        due_date,
+        created_by
+      )
+      VALUES (
+        500,
+        100,
+        'Keep this task unchanged',
+        3,
+        '2030-01-15T17:00:00Z',
+        1
+      );
+    `);
+
+    await databasePool.query(
+      `
+        INSERT INTO sessions (
+          token_hash,
+          user_id,
+          organization_id,
+          expires_at
+        )
+        VALUES ($1, 1, 10, NOW() + INTERVAL '1 hour')
+      `,
+      [sessionTokenHash],
+    );
+  });
+
+  afterEach(async () => {
+    await clearTestData();
+  });
+
+  it("does not assign an organization task to a user from another organization", async () => {
+    const taskBefore = await getTaskState("500");
+
+    const response = await request(app)
+      .patch("/tasks/500")
+      .set("Cookie", `sid=${sessionToken}`)
+      .send({ assigneeId: "2" });
+
+    const taskAfter = await getTaskState("500");
+
+    expect(taskBefore?.assigneeId).toBe("3");
+    expect(taskAfter).toEqual(taskBefore);
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Assignee must belong to the task organization",
+      },
+    });
+  });
+});
 
 describe("task database authorization", () => {
   beforeAll(async () => {
