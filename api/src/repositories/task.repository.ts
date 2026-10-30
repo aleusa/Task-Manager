@@ -1,7 +1,10 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 
 import { databasePool } from "../config/database.js";
-import type { CreateTaskInput } from "../schemas/task.schema.js";
+import type {
+  CreateTaskInput,
+  UpdateTaskInput,
+} from "../schemas/task.schema.js";
 
 export interface TaskRecord {
   id: string;
@@ -152,6 +155,76 @@ export class TaskRepository {
     } finally {
       client.release();
     }
+  }
+
+  async updateForOrganization(
+    taskId: string,
+    organizationId: string,
+    currentUserId: string,
+    input: UpdateTaskInput,
+  ): Promise<TaskRecord | null> {
+    const updatesTitle = input.title !== undefined;
+    const updatesAssignee = input.assigneeId !== undefined;
+    const updatesDueDate = input.dueDate !== undefined;
+
+    const result = await this.database.query<TaskRow>(
+      `
+        UPDATE tasks AS task
+        SET
+          title = CASE WHEN $4::boolean THEN $5 ELSE task.title END,
+          assignee_id = CASE
+            WHEN $6::boolean THEN $7::bigint
+            ELSE task.assignee_id
+          END,
+          due_date = CASE
+            WHEN $8::boolean THEN $9::timestamptz
+            ELSE task.due_date
+          END
+        FROM projects AS project
+        WHERE task.id = $1::bigint
+          AND project.id = task.project_id
+          AND project.organization_id = $2::bigint
+          AND EXISTS (
+            SELECT 1
+            FROM organization_memberships AS actor_membership
+            WHERE actor_membership.organization_id = $2::bigint
+              AND actor_membership.user_id = $3::bigint
+          )
+          AND (
+            NOT $6::boolean
+            OR $7::bigint IS NULL
+            OR EXISTS (
+              SELECT 1
+              FROM organization_memberships AS assignee_membership
+              WHERE assignee_membership.organization_id = $2::bigint
+                AND assignee_membership.user_id = $7::bigint
+            )
+          )
+        RETURNING
+          task.id::text AS "id",
+          task.project_id::text AS "projectId",
+          task.title,
+          task.description,
+          task.assignee_id::text AS "assigneeId",
+          task.priority,
+          task.due_date AS "dueDate",
+          task.created_at AS "createdAt"
+      `,
+      [
+        taskId,
+        organizationId,
+        currentUserId,
+        updatesTitle,
+        input.title ?? null,
+        updatesAssignee,
+        input.assigneeId ?? null,
+        updatesDueDate,
+        input.dueDate ?? null,
+      ],
+    );
+
+    const row = result.rows[0];
+    return row ? this.toTaskRecord(row) : null;
   }
 
   private async createForOrganizationWith(

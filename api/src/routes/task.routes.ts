@@ -9,6 +9,10 @@ import {
   type CreateTaskInput,
   type ProjectParams,
   projectParamsSchema,
+  type TaskParams,
+  taskParamsSchema,
+  type UpdateTaskInput,
+  updateTaskSchema,
 } from "../schemas/task.schema.js";
 
 export function createTaskRouter(
@@ -23,6 +27,14 @@ export function createTaskRouter(
     validateParams(projectParamsSchema),
     validateBody(createTaskSchema),
     taskController.create,
+  );
+
+  router.patch<TaskParams, unknown, UpdateTaskInput>(
+    "/tasks/:taskId",
+    authenticate,
+    validateParams(taskParamsSchema),
+    validateBody(updateTaskSchema),
+    taskController.update,
   );
 
   return router;

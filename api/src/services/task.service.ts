@@ -4,12 +4,16 @@ import type {
   TaskRepository,
 } from "../repositories/task.repository.js";
 import {
+  BadRequestError,
   ConflictError,
   ForbiddenError,
   ResourceNotFoundError,
 } from "../errors/http-error.js";
 import type { MembershipRepository } from "../repositories/membership.repository.js";
-import type { CreateTaskInput } from "../schemas/task.schema.js";
+import type {
+  CreateTaskInput,
+  UpdateTaskInput,
+} from "../schemas/task.schema.js";
 import type { AuthContext } from "../types/auth.js";
 
 export interface CreateTaskResult {
@@ -74,6 +78,49 @@ export class TaskService {
     }
 
     return this.toCreateTaskResult(result);
+  }
+
+  async updateTask(
+    auth: AuthContext,
+    taskId: string,
+    input: UpdateTaskInput,
+  ): Promise<TaskRecord> {
+    const role = await this.membershipRepository.findRole(
+      auth.currentUserId,
+      auth.currentOrganizationId,
+    );
+
+    if (role !== "ADMIN" && role !== "MANAGER") {
+      throw new ForbiddenError(
+        "Only administrators and managers can update tasks",
+      );
+    }
+
+    if (input.assigneeId !== undefined && input.assigneeId !== null) {
+      const assigneeRole = await this.membershipRepository.findRole(
+        input.assigneeId,
+        auth.currentOrganizationId,
+      );
+
+      if (!assigneeRole) {
+        throw new BadRequestError(
+          "Assignee must belong to the task organization",
+        );
+      }
+    }
+
+    const task = await this.taskRepository.updateForOrganization(
+      taskId,
+      auth.currentOrganizationId,
+      auth.currentUserId,
+      input,
+    );
+
+    if (!task) {
+      throw new ResourceNotFoundError("Task not found");
+    }
+
+    return task;
   }
 
   private toCreateTaskResult(

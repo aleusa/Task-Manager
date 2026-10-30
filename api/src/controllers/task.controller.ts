@@ -3,6 +3,8 @@ import type { RequestHandler } from "express";
 import type {
   CreateTaskInput,
   ProjectParams,
+  TaskParams,
+  UpdateTaskInput,
 } from "../schemas/task.schema.js";
 import type { TaskService } from "../services/task.service.js";
 import { BadRequestError } from "../errors/http-error.js";
@@ -38,5 +40,18 @@ export class TaskController {
     }
 
     response.status(result.replayed ? 200 : 201).json({ data: result.task });
+  };
+
+  update: RequestHandler<TaskParams, unknown, UpdateTaskInput> = async (
+    request,
+    response,
+  ) => {
+    const task = await this.taskService.updateTask(
+      request.auth,
+      request.params.taskId,
+      request.body,
+    );
+
+    response.status(200).json({ data: task });
   };
 }
